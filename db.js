@@ -32,3 +32,11 @@ const userModel  =  mongoose.model("User", userSchema)
 const adminModel  =  mongoose.model("admin", adminSchema)
 const puchaseModel  =  mongoose.model("purchase", purchaseSchema)
 const courseModel  =  mongoose.model("Course", courseSchema)
+
+module.exports = {
+    userModel,
+    adminModel,
+    puchaseModel,
+    courseModel
+    
+}
