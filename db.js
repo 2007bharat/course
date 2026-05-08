@@ -23,7 +23,7 @@ const courseSchema =  new Schema({
     price : String,
     img :  String,
     title   :String,
-    subtitle : String
+    description : String
 
 })
 
