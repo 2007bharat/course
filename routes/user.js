@@ -2,15 +2,18 @@ const express = require("express");
 const { Router } = express;
 const { z, success } = require("zod");
 const { userMiddleware } = require("../middlewares/user")
-
+const bcrypt = require("bcrypt")
+const jwt  =  require("jsonwebtoken")
 const userRouter = Router();
 const { userModel, purchaseModel, courseModel } = require("../db")
 
 userRouter.post("/signUp", async (req, res) => {
+
     const { username, email, password } = req.body;
+    console.log(req.body)
 
 
-    const userschema = z.object({
+    const adminSchema = z.object({
         username: z.string().min(6).max(16),
         email: z.string().email("INVALID_EMAIL").min(6).max(160),
         password: z.string().min(8).max(100).regex(/[A-Z]/, "Ek uppercase letter zaruri hai")
@@ -18,7 +21,7 @@ userRouter.post("/signUp", async (req, res) => {
             .regex(/[0-9]/, "Ek number zaruri hai")
         // .regex(/[@$!%*?&]/, "Ek special character zaruri hai")
     })
-    const dataZodChecker = userschema.safeParse(req.body);
+    const dataZodChecker = adminSchema.safeParse(req.body);
 
     if (!dataZodChecker.success) {
         return res.status(400).json({
@@ -26,13 +29,16 @@ userRouter.post("/signUp", async (req, res) => {
             error: dataZodChecker.error,
         })
     }
-
     try {
-        await userModel.create({
+        const hashPass = await bcrypt.hash(password, 12);
+
+        const chekcer = await userModel.create({
             username: username,
             email: email,
-            password: password
+            password: hashPass
         })
+        console.log(chekcer)
+
         res.json({
             success: dataZodChecker.success,
             message: "ACCOUNT_CREATE_SUCCESSFUL",
@@ -49,13 +55,14 @@ userRouter.post("/signUp", async (req, res) => {
 
             })
 
+        }
             res.status(500).json({
                 success: false,
                 message: "INTERNAL_SERVER_PROBLEM"
             })
-        }
-    }
 
+
+    }
 })
 
 userRouter.post("/signIn", async function (req, res) {
@@ -78,9 +85,10 @@ userRouter.post("/signIn", async function (req, res) {
         })
     }
     try {
-        const userFinder = await adminModel.findOne({
+        const userFinder = await userModel.findOne({
             email: email
         })
+        console.log("userFinder-----",userFinder)
         if (!userFinder) {
             return res.status(404).json({
                 success: false,
@@ -88,9 +96,9 @@ userRouter.post("/signIn", async function (req, res) {
             })
         }
         const checkpass = await bcrypt.compare(password, userFinder.password);
-        console.log(!checkpass)
+        // console.log(!checkpass)
 
-        console.log("hi")
+        console.log(checkpass)
         if (!checkpass) {
             res.status(401).json({
                 success: false,
@@ -98,10 +106,9 @@ userRouter.post("/signIn", async function (req, res) {
             })
         }
         const tokenGenrator = jwt.sign({ id: userFinder._id },
-            process.env.ADMIN_TOKEN, { expiresIn: "10m" }
+            process.env.USER_TOKEN, { expiresIn: "10m" }
         )
         console.log(tokenGenrator)
-        console.log(process.env.ADMIN_TOKEN)
         res.status(200).json({
             success: true,
             message: "LOGIN_GRANTED!!",
@@ -124,7 +131,7 @@ userRouter.post("/signIn", async function (req, res) {
     userRouter.get("/purchased",userMiddleware,async function(req,res){
         const userid = req.user;
         try{
-            const purchaseCourseaShow =  await purchaseModel.find(userid);
+            const purchaseCourseaShow =  await purchaseModel.find({userId : userid}).populate("courseId");
             if(purchaseCourseaShow.length === 0){
                 return res.status(404).json({
                     success : false,
@@ -164,9 +171,11 @@ userRouter.get("/show-courses", async function(req,res){
     }catch(err){
         res.status(500).json({
             success : false,
-            message : "INTERNAL_SERVER_PROBLEM"
-        })
+            message : "INTERNAL_SERVER_PROBLEM",
+            error : err.message
+        })  
     }   
+        
 })  
 
 

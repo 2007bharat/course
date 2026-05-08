@@ -6,12 +6,12 @@ const { z, success } = require("zod")
 const jwt=   require("jsonwebtoken")
 
 const purchaseRouter = Router();
-const { userModel, adminModel, courseModel } = require("../db");
+const { userModel, adminModel, courseModel , purchaseModel } = require("../db");
 const { userMiddleware } = require("../middlewares/user");
 
 
 
-userRouter.post("/course/:courseId", userMiddleware, async function (req, res) {
+purchaseRouter.post("/course/:courseId", userMiddleware, async function (req, res) {
     const { courseId } = req.params;
     const userId = req.user;
 
@@ -21,7 +21,7 @@ userRouter.post("/course/:courseId", userMiddleware, async function (req, res) {
     const dataZodChecker = adminSchema.safeParse(req.params);
     if (!dataZodChecker.success) {
         return res.status(400).json({
-            success: false,
+            success: dataZodChecker.success,
             message: dataZodChecker.error
         })
     }
@@ -33,11 +33,27 @@ userRouter.post("/course/:courseId", userMiddleware, async function (req, res) {
         })
     }
     try{
+        const alreadyPurchased = await purchaseModel.findOne({
+            userId: userId,
+            courseId: courseId
+        })
+        if(alreadyPurchased){
+            return res.status(400).json({
+                success: false,
+                message: "COURSE_ALREADY_PURCHASED"
+            })
+        }
 
         const purchaseCourse = await purchaseModel.create({
             userId: userId,
             courseId: courseId
         })
+        if(!purchaseCourse){
+            return res.status(400).json({
+                success: false,
+                message: "COURSE_PURCHASE_FAILED"
+            })
+        }
         res.status(201).json({
             success: true,
             message: "COURSE_PURCHASED_SUCCESSFULLY",
@@ -49,8 +65,9 @@ userRouter.post("/course/:courseId", userMiddleware, async function (req, res) {
     }catch(err){
         res.status(500).json({
             success : false,
-            message : "INTERNAL_SERVER_PROBLEM"     
-            })  
+            message : "INTERNAL_SERVER_PROBLEM",
+            message : err.message
+        })  
     }
 
 

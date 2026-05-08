@@ -1,7 +1,7 @@
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 
-function userMiddleware() {
+function userMiddleware(req,res,next){ 
     const token =  req.headers.token ;
             if(!token){
             return res.status(401).json({
