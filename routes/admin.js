@@ -6,8 +6,8 @@ const { z, success } = require("zod")
 const jwt=   require("jsonwebtoken")
 
 const adminRouter = Router();
-const { userModel, adminModel, courseModel } = require("../db")
-
+const { userModel, adminModel, courseModel } = require("../db");
+const { adminMiddleware } = require("../middlewares/admin");
 adminRouter.post("/signUp", async (req, res) => {
 
     const { username, email, password } = req.body;
@@ -30,10 +30,6 @@ adminRouter.post("/signUp", async (req, res) => {
             error: dataZodChecker.error,
         })
     }
-
-
-
-
     try {
         const hashPass = await bcrypt.hash(password, 12);
 
@@ -135,15 +131,7 @@ adminRouter.post("/signIn", async function (req, res) {
     }
 })
 
-adminRouter.post("/create-course",async function(req,res){
-    const token =  req.headers.token ; // use token from header for authentication and authorization
-
-    if(!token){
-        return res.status(401).json({
-            success : false,
-            message : "ACCESS_DENIED"
-        })
-    }
+adminRouter.post("/create-course",adminMiddleware,async function(req,res){
     const {price , img , title , description }  = req.body;
     const adminSchema = z.object({
         price : z.number().min(3).max(10000),
@@ -159,21 +147,13 @@ adminRouter.post("/create-course",async function(req,res){
         })
     }
     try{
-        const tokenCompare =  jwt.verify(token,process.env.ADMIN_TOKEN);
-        if(!tokenCompare){
-            return res.status(401).json({
-                success : false,
-                message : "TOKEN_NOT_FOUND"
-            })
-        }
-        console.log(tokenCompare)
-        const creatorId = tokenCompare.id;
-        console.log(creatorId)
+        const creatorId = req.creator;
         const courseCreate =  await courseModel.create({
             price : price,
             img : img,
             title : title,  
             description : description,
+        
             creatorId : creatorId
         })
         res.status(201).json({
@@ -182,36 +162,20 @@ adminRouter.post("/create-course",async function(req,res){
             course: courseCreate
         })
     }catch(err){
-        if(err.name === "JsonWebTokenError"){
-            return res.status(401).json({
-                success : false,
-                message : "TOKEN_MODIFIED"
+        res.status(500).json({
+            success : false,
+            message : "INTERNAL_SERVER_PROBLEM"     
             })
-        }
-
-        if(err.name === "TokenExpiredError"){
-            return res.status(401).json({
-                success : false,
-                message : "TOKEN_EXPIRED"
-            })
-        }
     }
 })
-
-adminRouter.get("update-course/", async (req,res)=>{
-       const token =  req.headers.token ; // use token from header for authentication and authorization
-
-    if(!token){
-        return res.status(401).json({
-            success : false,
-            message : "ACCESS_DENIED"
-        })
-    }
-    const {courseId }  = req.body;
+adminRouter.put("update-course/:courseId", adminMiddleware , async (req,res)=>{
+    const {courseId } = req.params;
+    const creatorId = req.creator;
+    console.log(courseId,creatorId)
     const adminSchema = z.object({
         courseId : z.string().min(5).max(100)
     })
-    const dataZodChecker = adminSchema.safeParse(req.body); 
+    const dataZodChecker = adminSchema.safeParse(req.params); 
     if(!dataZodChecker.success){
         return res.status(400).json({
             success : false,
@@ -219,15 +183,6 @@ adminRouter.get("update-course/", async (req,res)=>{
         })
     }
     try{
-        const tokenCompare =  jwt.verify(token,process.env.ADMIN_TOKEN);
-        if(!tokenCompare){
-            return res.status(401).json({
-                success : false,
-                message : "TOKEN_NOT_FOUND"
-            })
-        }
-        console.log(tokenCompare)
-        const creatorId = tokenCompare.id;
         const courseCreate =  await courseModel.updateOne({
             _id : courseId,
             creatorId : creatorId
@@ -243,31 +198,15 @@ adminRouter.get("update-course/", async (req,res)=>{
             course: courseCreate
         })
     }catch(err){
-        if(err.name === "JsonWebTokenError"){
-            return res.status(401).json({
-                success : false,
-                message : "TOKEN_MODIFIED"
+        res.status(500).json({
+            success : false,
+            message : "INTERNAL_SERVER_PROBLEM"     
             })
-        }
-
-        if(err.name === "TokenExpiredError"){
-            return res.status(401).json({
-                success : false,
-                message : "TOKEN_EXPIRED"
-            })
-        }
     }
 })
 
 
 adminRouter.delete("/delete-course/:courseId",async function(req,res){
-        const token =  req.headers.token ;
-        if(!token){
-        return res.status(401).json({
-            success : false,
-            message : "ACCESS_DENIED"
-        })
-    }
      const {courseId }  = req.params;
     const adminSchema = z.object({
          courseId : z.string().min(5).max(100)
@@ -280,13 +219,13 @@ adminRouter.delete("/delete-course/:courseId",async function(req,res){
         })
     }
     try{
-        const tokenCompare =  jwt.verify(token,process.env.ADMIN_TOKEN);
         if(!tokenCompare){
             return res.status(401).json({
                 success : false,
                 message : "TOKEN_NOT_FOUND"
             })
-        } const creatorId = tokenCompare.id;
+        } 
+        const creatorId = req.creator;
         const courseCreate =  await courseModel.findByIdAndDelete(courseId);
 
         if(!courseCreate){
@@ -317,21 +256,13 @@ adminRouter.delete("/delete-course/:courseId",async function(req,res){
     }
 })
 
-adminRouter.get("/creator-allCourses/:creatorId",async function(req,res){
+adminRouter.get("/creator-allCourses/",async function(req,res){
 
-       const token =  req.headers.token ; // use token from header for authentication and authorization
-
-    if(!token){
-        return res.status(401).json({
-            success : false,
-            message : "ACCESS_DENIED"
-        })
-    }
-    const {creatorId }  = req.params;
+    const creatorId   = req.creator;
     const adminSchema = z.object({
         creatorId : z.string().min(5).max(100)
     })
-    const dataZodChecker = adminSchema.safeParse(req.params); 
+    const dataZodChecker = adminSchema.safeParse({ creatorId: creatorId }); 
     if(!dataZodChecker.success){
         return res.status(400).json({
             success : false,
@@ -339,21 +270,12 @@ adminRouter.get("/creator-allCourses/:creatorId",async function(req,res){
         })
     }
     try{
-        const tokenCompare =  jwt.verify(token,process.env.ADMIN_TOKEN);
-        if(!tokenCompare){
-            return res.status(401).json({
-                success : false,
-                message : "TOKEN_NOT_FOUND"
-            })
-        }
-        console.log(tokenCompare)
-        const creatorId = tokenCompare.id;
         const courseCreate =  await courseModel.find({ creatorId: creatorId });
 
-        if(courseCreate.length === 0){
+        if(!courseCreate){
             return res.status(404).json({
                 success : false,
-                message : "COURSE_NOT_FOUND"
+                message : "CREATOR_NOT_FOUND"
             })
         }
         res.status(201).json({
@@ -362,19 +284,10 @@ adminRouter.get("/creator-allCourses/:creatorId",async function(req,res){
             courses: courseCreate
         })
     }catch(err){
-        if(err.name === "JsonWebTokenError"){
-            return res.status(401).json({
+            res.status(500).json({
                 success : false,
-                message : "TOKEN_MODIFIED"
+                message : "INTERNAL_SERVER_PROBLEM"     
             })
-        }
-
-        if(err.name === "TokenExpiredError"){
-            return res.status(401).json({
-                success : false,
-                message : "TOKEN_EXPIRED"
-            })
-        }
     }
 })  
 
