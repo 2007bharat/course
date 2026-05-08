@@ -13,7 +13,7 @@ const app = express();
 app.use(express.json())
 app.use("/api/v1/user/",userRouter)
 app.use("/api/v1/admin/",adminRouter)
-// app.use("/api/v1/user/",purchaseRouter)
+app.use("/api/v1/purchase/",purchaseRouter)
 async function connectDB(){
     
         await mongoose.connect(process.env.DB_LINK).then(()=>{
